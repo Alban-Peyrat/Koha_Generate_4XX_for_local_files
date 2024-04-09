@@ -1,0 +1,5 @@
+<checks>
+    <check bibnb="123456">
+        <subfield code="t" normalised="1">Love Colored Master Spark</subfield>
+    </check>
+</checks>

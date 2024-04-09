@@ -1,0 +1,4 @@
+.env
+ARCHIRES_framework_mapping.json
+*__pycache__*
+files/
