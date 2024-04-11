@@ -16,7 +16,7 @@ def prep_string(_str:str, _noise = True, _multiplespaces = True) -> str:
     """
     # remove noise (punctuation) if asked (by default yes)
     if _noise:
-        _str = re.sub(r"\.|\,|\?|\!|\;|\/|\:|\=|\[|\]|\'|\-|\(|\)|\||\"|\<|\>|\+|\°|[\u2010-\u2015]", " ", _str, flags=re.IGNORECASE)
+        _str = re.sub(r"[\x21-\x2F]|[\x3A-\x40]|[\x5B-\x60]|[\x7B-\x7F]|[\u2010-\u2015]|\.|\,|\?|\!|\;|\/|\:|\=|\[|\]|\'|\-|\(|\)|\||\"|\<|\>|\+|\°", " ", _str, flags=re.IGNORECASE)
     # replace multiple spaces by ine in string if requested (default yes)
     if _multiplespaces:
         _str = re.sub("\s+", " ", _str).strip()
