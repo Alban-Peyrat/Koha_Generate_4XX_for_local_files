@@ -156,9 +156,9 @@ def trigger_error(index:int, id:str, error:Errors, txt:str, data:str, file:Error
 def normalize_intnat_id(txt:str, step: Steps) -> str:
     """Returned a normalized version of an international ID"""
     if step == Steps.ISSN:
-        return re.sub("[^0-9]", "", issn)
+        return re.sub("[^0-9]", "", txt)
     elif step == Steps.ISBN:
-        return re.sub("[^0-9X]", "", isbn.upper())
+        return re.sub("[^0-9X]", "", txt.upper())
     return ""
 
 def normalize_check_value(txt:str) -> str:
