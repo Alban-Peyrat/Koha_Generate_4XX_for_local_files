@@ -3,11 +3,9 @@
 # external imports
 import os
 from dotenv import load_dotenv
-import json
 import re
 import pymarc
 from enum import Enum
-import csv
 from typing import List, Dict
 import xml.etree.ElementTree as ET
 from unidecode import unidecode
@@ -15,6 +13,7 @@ from unidecode import unidecode
 # Internal import
 import api.Koha_SRU as ksru
 import fcr_func as fcf
+from errors_manager import Errors_Manager, Errors
 
 # ---------- Init ----------
 load_dotenv()
@@ -22,6 +21,7 @@ load_dotenv()
 RECORDS_FILE_PATH = os.getenv("RECORDS_FILE")
 FILE_OUT = os.getenv("FILE_OUT")
 ERRORS_FILE_PATH = os.path.abspath(os.getenv("ERRORS_FILE"))
+ERR_MAN = Errors_Manager(ERRORS_FILE_PATH)
 MANUAL_CHECKS_FILE = os.getenv("MANUAL_CHECKS_FILE")
 KOHA_URL = os.getenv("KOHA_URL")
 sru = ksru.Koha_SRU(KOHA_URL, ksru.SRU_Version.V1_1)
@@ -100,58 +100,7 @@ class Known_Element(object):
 KNOWN_LIST:List[Known_Element] = []
 MANUAL_CHECKS_KNOWN_LIST:List[Known_Element] = []
 
-# ----- Error handling def -----
-class Errors(Enum):
-    CHUNK_ERROR = 0
-    NO_RECORD_ID = 1
-    MANUAL_CHECK_SRU = 2
-    # Analysis errors
-    SRU_ERROR = 100
-    SRU_MULTIPLE_MATCHES = 101
-
-class Error_File_Headers(Enum):
-    INDEX = "index"
-    ID = "id"
-    ERROR = "error"
-    TXT = "error_message"
-    DATA = "data"
-
-class Error_obj(object):
-    def __init__(self, index:int, id:str, error:Errors, txt:str, data:str) -> None:
-        self.index = index
-        self.id = id
-        self.error = error
-        self.txt = txt
-        self.data = data
-    
-    def to_dict(self):
-        return {
-            Error_File_Headers.INDEX.value:self.index,
-            Error_File_Headers.ID.value:self.id,
-            Error_File_Headers.ERROR.value:self.error.name,
-            Error_File_Headers.TXT.value:self.txt,
-            Error_File_Headers.DATA.value:self.data
-        }
-
-class Error_File(object):
-    def __init__(self, file_path:str) -> None:
-        self.file = open(file_path, "w", newline="", encoding='utf-8')
-        self.headers = []
-        for member in Error_File_Headers:
-            self.headers.append(member.value)
-        self.writer = csv.DictWriter(self.file, extrasaction="ignore", fieldnames=self.headers, delimiter=";")
-        self.writer.writeheader()
-
-    def write(self, content:dict):
-        self.writer.writerow(content)
-
-    def close(self):
-        self.file.close()
-
 # ---------- Func def ----------
-def trigger_error(index:int, id:str, error:Errors, txt:str, data:str, file:Error_File):
-    """Trigger an error"""
-    file.write(Error_obj(index, id, error, txt, data).to_dict())
 
 def normalize_intnat_id(txt:str, step: Steps) -> str:
     """Returned a normalized version of an international ID"""
@@ -473,7 +422,6 @@ def get_manual_check_known_elements() -> List[Known_Element]:
 # ---------- Preparing Main ----------
 MARC_READER = pymarc.MARCReader(open(RECORDS_FILE_PATH, 'rb'), to_unicode=True, force_utf8=True) # DON'T FORGET ME
 MARC_WRITER = open(FILE_OUT, "wb") # DON'T FORGET ME
-ERRORS_FILE = Error_File(ERRORS_FILE_PATH) # DON'T FORGET ME
 # ----- Load manual checks -----
 with open(MANUAL_CHECKS_FILE, mode="r+", encoding="utf-8") as f:
     root = ET.fromstring(f.read())
@@ -488,7 +436,7 @@ with open(MANUAL_CHECKS_FILE, mode="r+", encoding="utf-8") as f:
                     maximum_records=10
                 )
         if (res.status == "Error"):
-            trigger_error("ø", "ø", Errors.MANUAL_CHECK_SRU, "Error occured during SRU request for a manual check", res.get_error_msg(), ERRORS_FILE)
+            ERR_MAN.trigger_error(-1, "Ø", Errors.MANUAL_CHECK_SRU, "Error occured during SRU request for a manual check", res.get_error_msg())
             continue
         # Adds to the known list if at least a result returned
         if len(res.get_records()) > 0:
@@ -499,7 +447,7 @@ with open(MANUAL_CHECKS_FILE, mode="r+", encoding="utf-8") as f:
 for record_index, record in enumerate(MARC_READER):
     # If record is invalid
     if record is None:
-        trigger_error(record_index, "", Errors.CHUNK_ERROR, "", "", ERRORS_FILE)
+        ERR_MAN.trigger_error(record_index, "", Errors.CHUNK_ERROR, "", "")
         continue # Fatal error, skipp
 
     # Gets the record ID
@@ -507,19 +455,26 @@ for record_index, record in enumerate(MARC_READER):
     if not record_id:
         # if no 001, check 035
         if not record["035"]:
-            trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035", "", ERRORS_FILE)
+            ERR_MAN.trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035", "")
         elif not record["035"]["a"]:
-            trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035$a", "", ERRORS_FILE)
+            ERR_MAN.trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035$a", "")
         else:
             record_id = record["035"]["a"]
-    
+    else:
+        record_id = record_id.data
+
     for field in record.get_fields(*U4XX_list): # *[] to iterate, using just [] returns nothing
         # Manual check
         step = Steps.MANUAL_CHECK
+        leave = False
         for known_element in get_manual_check_known_elements():
             if known_element.manual_check.check(field):
                 field.subfields = known_element.subfields
+                leave = True
                 continue
+        # Manual check succeeded, leave
+        if leave:
+            continue
 
         # Get first $x and treats it like an ISSN
         step = Steps.ISSN
@@ -539,12 +494,12 @@ for record_index, record in enumerate(MARC_READER):
                     maximum_records=10
                 )
                 if (res.status == "Error"):
-                    trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISSN", res.get_error_msg(), ERRORS_FILE)
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISSN", res.get_error_msg())
                     continue
                 
                 if len(res.get_records_id()) > 1:
                     # Informative error, we use 1st record if the query is ISSN
-                    trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISSN", ",".join(res.get_records_id()), ERRORS_FILE)
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISSN", ",".join(res.get_records_id()))
                 
                 if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
                     new_known_element = Known_Element(Steps.ISSN, query, generate_4XX_subfields(res.get_records()[0]), {"issn":issn})
@@ -574,12 +529,12 @@ for record_index, record in enumerate(MARC_READER):
                     maximum_records=10
                 )
                 if (res.status == "Error"):
-                    trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISBN", res.get_error_msg(), ERRORS_FILE)
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISBN", res.get_error_msg())
                     continue
                 
                 if len(res.get_records_id()) > 1:
                     # Informative error, we use 1st record if the query is ISSN
-                    trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISBN", ",".join(res.get_records_id()), ERRORS_FILE)
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISBN", ",".join(res.get_records_id()))
                 
                 if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
                     new_known_element = Known_Element(Steps.ISSN, query, generate_4XX_subfields(res.get_records()[0]), {"issn":issn})
@@ -595,4 +550,4 @@ for record_index, record in enumerate(MARC_READER):
 
 MARC_READER.close()
 MARC_WRITER.close()
-ERRORS_FILE.close()
+ERR_MAN.close()

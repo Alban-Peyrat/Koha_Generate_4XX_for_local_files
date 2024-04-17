@@ -2,4 +2,11 @@
     <check bibnb="123456">
         <subfield code="t" normalised="1">Love Colored Master Spark</subfield>
     </check>
+    <check bibnb="123457">
+        <subfield code="t">Nuclear Fusion</subfield>
+    </check>
+    <check bibnb="123458">
+        <subfield code="t" normalised="1">History</subfield>
+        <subfield code="a" normalised="1">Of the Moon</subfield>
+    </check>
 </checks>
