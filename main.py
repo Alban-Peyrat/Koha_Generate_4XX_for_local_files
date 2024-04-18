@@ -38,11 +38,12 @@ NS = {
 # ---------- Class def ----------
 # ----- Manual checks -----
 class Manual_Subfield_Check(object):
+    # This is mainly used to know if we have to normalise the field in the check
     def __init__(self, code:str, value:str, normalised:str="0") -> None:
         self.code = code
         self.normalised = normalised == "1"
         self.value = value.strip()
-        if normalised == True:
+        if self.normalised == True:
             self.value = normalize_check_value(self.value)
 
 class Manual_Check(object):
@@ -58,11 +59,13 @@ class Manual_Check(object):
     def check(self, field:pymarc.field.Field) -> bool:
         """Returns if the provided field passes the manual check"""
         valid_checks = 0
+        # Loop through subfield to check
         for code in self.subfields:
+            # Get this subfield in the record field
             subf = field[code]
             if subf:
                 subf = subf.strip()
-                # If this subfield is checked normalised
+                # Normlized the content if this subfield is normalised
                 if self.subfields[code].normalised:
                     subf = normalize_check_value(subf)
                 # Actual check
@@ -112,7 +115,7 @@ def normalize_intnat_id(txt:str, step: Steps) -> str:
 
 def normalize_check_value(txt:str) -> str:
     """Returns the strig normalized for the manual checks"""
-    return unidecode(txt).upper()
+    return unidecode(txt).upper().strip()
 
 def generate_intnat_id_sru_query(txt:str, step:Steps):
     """Returns the SRU request for an ISSN / ISBN"""
@@ -129,15 +132,7 @@ def generate_intnat_id_sru_query(txt:str, step:Steps):
     if not index:
         return ""
     # Return the query
-    sru_request = [ksru.Part_Of_Query(index,ksru.SRU_Relations.EQUALS,issn)]
-    return sru.generate_query(sru_request)
-
-def generate_isbn_sru_query(issn:str):
-    """Returns the SRU request for an ISBN"""
-    issn = fcf.delete_for_sudoc(issn).strip()
-    if issn == "":
-        return ""
-    sru_request = [ksru.Part_Of_Query(ksru.SRU_Indexes.ISSN,ksru.SRU_Relations.EQUALS,issn)]
+    sru_request = [ksru.Part_Of_Query(index,ksru.SRU_Relations.EQUALS,txt)]
     return sru.generate_query(sru_request)
 
 def xml_return_all_subfields(record:ET.Element, tag:str, code:str) -> List[ET.Element]:
@@ -349,7 +344,7 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
     volume_nb_nodes = xml_return_all_subfields(record, "225", "v")
     # If no 225$v, check 200$h
     if len(volume_nb_nodes) == 0:
-        volume_nb_nodes == xml_return_all_subfields(record, "200", "h")
+        volume_nb_nodes += xml_return_all_subfields(record, "200", "h")
     # Add the subfield if we have a value
     if len(volume_nb_nodes) > 0:
         output += ["v", volume_nb_nodes[0].text]
@@ -481,11 +476,11 @@ for record_index, record in enumerate(MARC_READER):
         issn = field["x"]
         if issn:
             # Checks if this ISSN is known
-            known_element = get_known_element_by_intnat_id(issn, Steps.ISSN)
+            known_element = get_known_element_by_intnat_id(issn, step)
             if known_element:
                 field.subfields = known_element.subfields
                 continue
-            query = generate_intnat_id_sru_query(issn, Steps.ISSN)
+            query = generate_intnat_id_sru_query(issn, step)
             if query != "":
                 res = sru.search(
                     query,
@@ -499,10 +494,10 @@ for record_index, record in enumerate(MARC_READER):
                 
                 if len(res.get_records_id()) > 1:
                     # Informative error, we use 1st record if the query is ISSN
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISSN", ",".join(res.get_records_id()))
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISSN", f"ISSN {issn} : {','.join(res.get_records_id())}")
                 
                 if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
-                    new_known_element = Known_Element(Steps.ISSN, query, generate_4XX_subfields(res.get_records()[0]), {"issn":issn})
+                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), issn=issn)
                     add_known_element(new_known_element)
                     # Change 463 only if there's a link
                     if new_known_element.has_link:
@@ -516,11 +511,11 @@ for record_index, record in enumerate(MARC_READER):
         isbn = field["y"]
         if isbn:
             # Checks if this ISBN is known
-            known_element = get_known_element_by_intnat_id(isbn, Steps.ISBN)
+            known_element = get_known_element_by_intnat_id(isbn, step)
             if known_element:
                 field.subfields = known_element.subfields
                 continue
-            query = generate_intnat_id_sru_query(isbn, Steps.ISBN)
+            query = generate_intnat_id_sru_query(isbn, step)
             if query != "":
                 res = sru.search(
                     query,
@@ -534,10 +529,10 @@ for record_index, record in enumerate(MARC_READER):
                 
                 if len(res.get_records_id()) > 1:
                     # Informative error, we use 1st record if the query is ISSN
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISBN", ",".join(res.get_records_id()))
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISBN", f"ISBN {isbn} : {','.join(res.get_records_id())}")
                 
                 if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
-                    new_known_element = Known_Element(Steps.ISSN, query, generate_4XX_subfields(res.get_records()[0]), {"issn":issn})
+                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), isbn=isbn)
                     add_known_element(new_known_element)
                     # Change 463 only if there's a link
                     if new_known_element.has_link:
