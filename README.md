@@ -2,8 +2,10 @@
 
 [![Active Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Developed-brightgreen.svg)](https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d)
 
-This application is used to build UNIAMRC `4XX` fields for local MARC records based on Koha database.
+This application is used to build UNIMARC `4XX` fields for local MARC records based on Koha database.
 This is based on [the value builder `unimarc_field_4XX.pl` (master branch, 2024-04-08)](https://github.com/Koha-Community/Koha/blob/a64383de16c8d79e44c297ad8da860b536d91597/cataloguing/value_builder/unimarc_field_4XX.pl).
+
+__Developped with `pymarc 4.2.2.`__, might not work with version `5` of the library.
 
 This script was created mainly to link articles to their periodical, it might not work the best / correcty for other cases.
 
