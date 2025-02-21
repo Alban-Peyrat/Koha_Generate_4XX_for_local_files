@@ -1,4 +1,4 @@
 index;id;error;error_message;data
 1;;NO_RECORD_ID;No 001 or 035;
 2;;NO_RECORD_ID;No 001 or 035$a;
-5;000000101;SRU_MULTIPLE_MATCHES;SRU returned multiple matches for this ISBN;ISBN 4-7869-0132-6 : 426372,22636
+5;000000101;SRU_MULTIPLE_MATCHES;SRU returned multiple matches for this ISBN;ISBN 4-7869-0132-6 : 22636,426372

@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import re
 import pymarc
+from pymarc import Subfield
 from enum import Enum
 from typing import List, Dict
 import xml.etree.ElementTree as ET
@@ -62,7 +63,7 @@ class Manual_Check(object):
         # Loop through subfield to check
         for code in self.subfields:
             # Get this subfield in the record field
-            subf = field[code]
+            subf = field.get(code)
             if subf:
                 subf = subf.strip()
                 # Normlized the content if this subfield is normalised
@@ -82,11 +83,11 @@ class Steps(Enum):
     ISBN = 1
 
 class Known_Element(object):
-    def __init__(self, step:Steps, query:str, subfields:list, manual_check:Manual_Check=None, issn:str=None, isbn:str=None) -> None:
+    def __init__(self, step:Steps, query:str, subfields:List[Subfield], manual_check:Manual_Check=None, issn:str=None, isbn:str=None) -> None:
         self.step = step
         self.query = query
         self.subfields = subfields
-        self.has_link = subfields[0] == "9"
+        self.has_link = subfields[0].code == "9"
         # Manual check
         self.manual_check = manual_check
         # ISSN
@@ -226,7 +227,8 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
     # Get bibnb ($9 & $0)
     bibnb_node = record.find(".//marc:controlfield[@tag='001']", NS)
     if bibnb_node is not None: # DON'T DO if bibnb_node, it evaluates to false as there's no children
-        output += ["9", bibnb_node.text, "0", bibnb_node.text]
+        output.append(Subfield(code="9", value=bibnb_node.text))
+        output.append(Subfield(code="0", value=bibnb_node.text))
     
     # Subfield $a
     # Why the fuck is the order 700 → 702 → 710 → 701 → 712 → 200$f
@@ -250,29 +252,29 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
     if len(authors_fields) > 0:
         author_text = generate_4XX_author_from_7XX(authors_fields[0])
         if author_text != "":
-            output += ["a", author_text]
+            output.append(Subfield(code="a", value=author_text))
     # If no 7XX, try 200$f
     else:
         authors_200_nodes = xml_return_all_subfields(record, "200", "f")
         if len(authors_200_nodes) > 0: # Not a elif
-            output += ["a", authors_200_nodes[0].text]
+            output.append(Subfield(code="a", value=authors_200_nodes[0].text))
 
     # Get publication place ($c)
     # Does not look for 214 ?
     publication_place_nodes = xml_return_all_subfields(record, "210", "a")
     if len(publication_place_nodes) > 0:
-        output += ["c", publication_place_nodes[0].text]
+        output.append(Subfield(code="c", value=publication_place_nodes[0].text))
     
     # Get publication date ($d)
     # Does not look for 214 ?
     publication_date_nodes = xml_return_all_subfields(record, "210", "d")
     if len(publication_date_nodes) > 0:
-        output += ["d", publication_date_nodes[0].text]
+        output.append(Subfield(code="d", value=publication_date_nodes[0].text))
 
     # Get edition ($e)
     edition_nodes = xml_return_all_subfields(record, "205", "a")
     if len(edition_nodes) > 0:
-        output += ["e", edition_nodes[0].text]
+        output.append(Subfield(code="e", value=edition_nodes[0].text))
     
     # Get Section / part number ($h)
     # First check 200$h
@@ -285,7 +287,7 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
         section_nb_nodes += xml_return_all_subfields(record, "500", "h") # += just in case
     # Add the subfield if we have a value    
     if len(section_nb_nodes) > 0:
-        output += ["h", section_nb_nodes[0].text]
+        output.append(Subfield(code="h", value=section_nb_nodes[0].text))
 
     # Get Section / part name ($i)
     # First check 200$i
@@ -298,28 +300,28 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
         section_name_nodes += xml_return_all_subfields(record, "500", "i") # += just in case
     # Add the subfield if we have a value    
     if len(section_name_nodes) > 0:
-        output += ["i", section_name_nodes[0].text]
+        output.append(Subfield(code="i", value=section_name_nodes[0].text))
 
     # Get parallel title ($l)
     parallel_title_nodes = xml_return_all_subfields(record, "200", "d")
     if len(parallel_title_nodes) > 0:
-        output += ["l", parallel_title_nodes[0].text]
+        output.append(Subfield(code="l", value=parallel_title_nodes[0].text))
     
     # Get Publisher's name ($n)
     # Does not look for 214 ?
     publisher_name_nodes = xml_return_all_subfields(record, "210", "c")
     if len(publisher_name_nodes) > 0:
-        output += ["n", publisher_name_nodes[0].text]
+        output.append(Subfield(code="n", value=publisher_name_nodes[0].text))
 
     # Get Other title information ($o)
     other_title_nodes = xml_return_all_subfields(record, "200", "e")
     if len(other_title_nodes) > 0:
-        output += ["o", other_title_nodes[0].text]
+        output.append(Subfield(code="o", value=other_title_nodes[0].text))
 
     # Get physical description ($p)
     physical_desc_nodes = xml_return_all_subfields(record, "215", "a")
     if len(physical_desc_nodes) > 0:
-        output += ["p", physical_desc_nodes[0].text]
+        output.append(Subfield(code="p", value=physical_desc_nodes[0].text))
 
     # Get title ($t)
     # First check 200$a
@@ -332,12 +334,12 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
         title_nodes += xml_return_all_subfields(record, "500", "a") # += just in case
     # Add the subfield if we have a value
     if len(title_nodes) > 0:
-        output += ["t", title_nodes[0].text]
+        output.append(Subfield(code="t", value=title_nodes[0].text))
 
     # Get URI ($u)
     uri_nodes = xml_return_all_subfields(record, "856", "u")
     if len(uri_nodes) > 0:
-        output += ["u", uri_nodes[0].text]
+        output.append(Subfield(code="u", value=uri_nodes[0].text))
 
     # Get volume number ($v)
     # First check 225$v
@@ -347,7 +349,7 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
         volume_nb_nodes += xml_return_all_subfields(record, "200", "h")
     # Add the subfield if we have a value
     if len(volume_nb_nodes) > 0:
-        output += ["v", volume_nb_nodes[0].text]
+        output.append(Subfield(code="v", value=volume_nb_nodes[0].text))
 
     # Get the ISSN ($x)
     # First check if there are 011$y or 011$x
@@ -357,7 +359,7 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
     if len(wrong_issn_nodes) == 0:
         issn_nodes = xml_return_all_subfields(record, "011", "a")
         if len(issn_nodes) > 0:
-            output += ["x", issn_nodes[0].text]
+            output.append(Subfield(code="x", value=issn_nodes[0].text))
 
     # Get the ISBN ($y)
     # So the plugin is kinda strange here but :
@@ -369,13 +371,13 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
     isbn_nodes = xml_return_all_subfields(record, "010", "a")
     # We have a match, use it
     if len(isbn_nodes) > 0:
-        output += ["y", isbn_nodes[0].text]
+        output.append(Subfield(code="y", value=isbn_nodes[0].text))
     # If no 010$a, we check if there were 010 at all, if not, check 013$a
     elif len(record.findall(".//marc:datafield[@tag='010']", NS)) == 0:
         ismn_nodes = xml_return_all_subfields(record, "013", "a")
         # Add the subfield if we have a value
         if len(ismn_nodes) > 0:
-            output += ["y", ismn_nodes[0].text]
+            output.append(Subfield(code="y", value=ismn_nodes[0].text))
 
     # Return the subfields
     return output
@@ -446,15 +448,15 @@ for record_index, record in enumerate(MARC_READER):
         continue # Fatal error, skipp
 
     # Gets the record ID
-    record_id = record["001"]
+    record_id = record.get("001")
     if not record_id:
         # if no 001, check 035
-        if not record["035"]:
+        if not record.get("035"):
             ERR_MAN.trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035", "")
-        elif not record["035"]["a"]:
+        elif not record.get("035").get("a"):
             ERR_MAN.trigger_error(record_index, "", Errors.NO_RECORD_ID, "No 001 or 035$a", "")
         else:
-            record_id = record["035"]["a"]
+            record_id = record.get("035").get("a")
     else:
         record_id = record_id.data
 
@@ -473,7 +475,7 @@ for record_index, record in enumerate(MARC_READER):
 
         # Get first $x and treats it like an ISSN
         step = Steps.ISSN
-        issn = field["x"]
+        issn = field.get("x")
         if issn:
             # Checks if this ISSN is known
             known_element = get_known_element_by_intnat_id(issn, step)
@@ -508,7 +510,7 @@ for record_index, record in enumerate(MARC_READER):
         # If no ISSN, check for ISBN
         # Get first $y and treats it like an ISBN
         step = Steps.ISBN
-        isbn = field["y"]
+        isbn = field.get("y")
         if isbn:
             # Checks if this ISBN is known
             known_element = get_known_element_by_intnat_id(isbn, step)
