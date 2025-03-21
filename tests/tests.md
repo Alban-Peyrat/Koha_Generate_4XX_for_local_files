@@ -31,5 +31,6 @@ _Ignoring fields `400` & `410`_
   * `428` with a `$y` matching iblionumber `372603` : `428` with a `$0372603` & `$iA.T.`
   * `429` with a `$y` matching biblionumber `545143` : `429` with a `$0545143` & `$l= Home of the future`
   * `430` with a `$x` matching biblionumber `187` : `430` wiht a `$0152259` & no `$x`
+  * `431` with a `$9` matching biblionumber `123456` : `431` is changed to `$0123456$tCréateurs du Japon$aLabbé, Françoise (19..-....)$p1 vol. (199 p.)$y2-7056-6058-5`
   * _`200$a` is mandatory so we're not testing `$t`_
   * _Authors things are a pain to check & seems to work so no testing the full behaviour_

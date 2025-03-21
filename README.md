@@ -43,7 +43,8 @@ Set up the following environment variables :
 The script will check, for each field, with the following order :
 
 1. If the field matches one of the manual checks
+2. If the field has a linked biblionumber (`$9`), it will search with Koha SRU for records
 2. If the field has an ISSN (`$x`), it will search with Koha SRU for records
 3. If the field has an ISBN (`$y`), it will search with Koha SRU for records
 
-If a field matches an ISSN or an ISBN, the script will store for this execution the matching record, to minimze requests to the SRU on known elements.
+If a field matches a linked biblionumber, an ISSN or an ISBN, the script will store for this execution the matching record, to minimze requests to the SRU on known elements.

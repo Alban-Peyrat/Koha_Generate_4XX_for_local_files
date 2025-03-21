@@ -80,16 +80,19 @@ class Manual_Check(object):
 class Steps(Enum):
     ISSN = 0
     MANUAL_CHECK = 1
-    ISBN = 1
+    ISBN = 2
+    LINKED_BIBLIONUMBER = 3
 
 class Known_Element(object):
-    def __init__(self, step:Steps, query:str, subfields:List[Subfield], manual_check:Manual_Check=None, issn:str=None, isbn:str=None) -> None:
+    def __init__(self, step:Steps, query:str, subfields:List[Subfield], manual_check:Manual_Check=None, issn:str=None, isbn:str=None, linked_bibnb:str=None) -> None:
         self.step = step
         self.query = query
         self.subfields = subfields
         self.has_link = subfields[0].code == "9"
         # Manual check
         self.manual_check = manual_check
+        # Linked biblionumber
+        self.linked_biblionumber = linked_bibnb
         # ISSN
         self.issn = issn
         self.normalized_issn = None
@@ -409,6 +412,10 @@ def get_known_element_by_intnat_id(id:str, step:Steps) -> Known_Element:
                 return known_element
             elif known_element.query == generate_intnat_id_sru_query(id, Steps.ISBN) and known_element.query != "":
                 return known_element
+        # Linked biblionumber
+        elif step == Steps.LINKED_BIBLIONUMBER:
+            if known_element.linked_biblionumber == id:
+                return known_element
 
     return None
 
@@ -472,6 +479,40 @@ for record_index, record in enumerate(MARC_READER):
         # Manual check succeeded, leave
         if leave:
             continue
+
+        # Linked Biblionumber check
+        step = Steps.LINKED_BIBLIONUMBER
+        linked_bibnb = field.get("9")
+        if linked_bibnb:
+            # Checks if this linked bibnb is known
+            known_element = get_known_element_by_intnat_id(linked_bibnb, step)
+            if known_element:
+                field.subfields = known_element.subfields
+                continue
+            query = sru.generate_query([ksru.Part_Of_Query(ksru.SRU_Indexes.BIBLIONUMBER, ksru.SRU_Relations.EQUALS, linked_bibnb)])
+            if query != "":
+                res = sru.search(
+                    query,
+                    record_schema=ksru.SRU_Record_Schemas.MARCXML,
+                    start_record=1,
+                    maximum_records=10
+                )
+                if (res.status == "Error"):
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on linked biblionumber", res.get_error_msg())
+                    continue
+                
+                if len(res.get_records_id()) > 1:
+                    # Informative error, we use 1st record if the query is linked ibbionumber
+                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this linked biblionumber", f"Linked biblionumber {linked_bibnb} : {','.join(res.get_records_id())}")
+                
+                if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
+                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), linked_bibnb=linked_bibnb)
+                    add_known_element(new_known_element)
+                    # Change 463 only if there's a link
+                    if new_known_element.has_link:
+                        field.subfields = new_known_element.subfields
+                    
+                    continue
 
         # Get first $x and treats it like an ISSN
         step = Steps.ISSN
