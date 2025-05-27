@@ -235,7 +235,7 @@ class Koha_SRU(object):
             self.logger.error(f"Explain :: Koha_SRU Explain :: HTTP Status: {r.status_code} || Method: {r.request.method} || URL: {r.url} || Response: {r.text}")
         except requests.exceptions.RequestException as generic_error:
             status = Status.ERROR
-            self.error_msg = Errors.GENERIC
+            error_msg = Errors.GENERIC
             self.logger.error(f"Explain :: Koha_SRU Explain :: Generic exception || URL: {url} || {generic_error}")
         else:
             status = Status.SUCCESS
@@ -288,7 +288,7 @@ class Koha_SRU(object):
     #         self.logger.error(f"{scan_clause} :: Sudoc_SRU Scan :: HTTP Status: {r.status_code} || Method: {r.request.method} || URL: {r.url} || Response: {r.text}")
     #     except requests.exceptions.RequestException as generic_error:
     #         status = Status.ERROR
-    #         self.error_msg = Errors.GENERIC
+    #         error_msg = Errors.GENERIC
     #         self.logger.error(f"{scan_clause} :: Sudoc_SRU Scan :: Generic exception || URL: {url} || {generic_error}")
     #     else:
     #         status = Status.SUCCESS
@@ -348,7 +348,7 @@ class Koha_SRU(object):
             self.logger.error(f"{query} :: Koha_SRU Search Retrieve :: HTTP Status: {r.status_code} || Method: {r.request.method} || URL: {r.url} || Response: {r.text}")
         except requests.exceptions.RequestException as generic_error:
             status = Status.ERROR
-            self.error_msg = Errors.GENERIC
+            error_msg = Errors.GENERIC
             self.logger.error(f"{query} :: Koha_SRU Search Retrieve :: Generic exception || URL: {url} || {generic_error}")
         else:
             status = Status.SUCCESS
