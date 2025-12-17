@@ -23,7 +23,7 @@ _Ignoring fields `400` & `410`_
   * `420` with nothing matching manual checks, a `$y` matching biblionumber `538789` : `420` with `$0538789$tL'hôpital Beaujon de Clichy$aBonneau, Lila (1990-....)$ol'architecture thérapeutique du XXe siècle et ses milieux$p1 volume (204 pages)$y979-10-370-2967-6`
   * `421` with a `$y` matching biblionumber `538789` if normalised : `421` with `$0538789$tL'hôpital Beaujon de Clichy$aBonneau, Lila (1990-....)$ol'architecture thérapeutique du XXe siècle et ses milieux$p1 volume (204 pages)$y979-10-370-2967-6`
   * `422` with a `$x` matching biblionumber `162` if normalised : `422` with `$0162$tCriticat$cParis$d2008-2018$nAssociation Criticat$x1961-5981`
-  * `423` with a `$y` matching biblionumber `117079` : `423` with `$0117079` & `$e[Nouv. éd. révisée]` and no `$y` (erroneous ISBN is in the record in the first `010` which has no `$a`)
+  * `423` with a `$y` matching biblionumber `117079` : `423` with `$0117079` & `$e[Nouv. éd. révisée]` and `$y2-08-011565-0` (first `010` only have erroneous ISBN but the second one has a `$a`)
   * `424` with a `$y` matching biblionumber `116686` : `424` with `$0116686`, `$h11`, `$i[index général]`
   * `425` with a `$y` matching biblionumber `22636` : `425` with `$022636` & `$h1997-2`
   * `426` with a `$y` matching biblionumber `387687` : `426` with `$0387687` & `$hLibro 1-5`
@@ -32,5 +32,6 @@ _Ignoring fields `400` & `410`_
   * `429` with a `$y` matching biblionumber `545143` : `429` with a `$0545143` & `$l= Home of the future`
   * `430` with a `$x` matching biblionumber `187` : `430` wiht a `$0152259` & no `$x`
   * `431` with a `$9` matching biblionumber `123456` : `431` is changed to `$0123456$tCréateurs du Japon$aLabbé, Françoise (19..-....)$p1 vol. (199 p.)$y2-7056-6058-5`
+  * `432` with a `$y` matching biblionumber `115185` :  `432` is changed to `$0115185$tLes seuils du proche$aFrance$p1 vol. (231 p.)` and no `$y` (no `010` have a `$a`, only erroneous ISBN)
   * _`200$a` is mandatory so we're not testing `$t`_
   * _Authors things are a pain to check & seems to work so no testing the full behaviour_

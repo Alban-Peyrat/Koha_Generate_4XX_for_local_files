@@ -84,25 +84,36 @@ class Steps(Enum):
     LINKED_BIBLIONUMBER = 3
 
 class Known_Element(object):
-    def __init__(self, step:Steps, query:str, subfields:List[Subfield], manual_check:Manual_Check=None, issn:str=None, isbn:str=None, linked_bibnb:str=None) -> None:
-        self.step = step
-        self.query = query
-        self.subfields = subfields
-        self.has_link = subfields[0].code == "9"
-        # Manual check
-        self.manual_check = manual_check
-        # Linked biblionumber
-        self.linked_biblionumber = linked_bibnb
-        # ISSN
-        self.issn = issn
-        self.normalized_issn = None
-        if self.issn is not None and self.step == Steps.ISSN:
-            self.normalized_issn = normalize_intnat_id(self.issn, Steps.ISSN)
-        # ISBN
-        self.isbn = isbn
-        self.normalized_isbn = None
-        if self.isbn is not None and self.step == Steps.ISBN:
-            self.normalized_isbn = normalize_intnat_id(self.isbn, Steps.ISBN)
+    def __init__(self, step:Steps, query:str, subfields:List[Subfield], id:str|Manual_Check) -> None:
+        self.step:Steps = step
+        self.query:str = query
+        self.subfields:List[Subfield] = subfields
+        self.linked_biblionumber:str = None
+        self.issn:str = None
+        self.normalized_issn:str = None
+        self.isbn:str = None
+        self.normalized_isbn:str = None
+        self.manual_check:Manual_Check = None
+        # Give ID to the corretc attribute
+        if step == Steps.MANUAL_CHECK:
+            self.manual_check = id
+        elif step == Steps.LINKED_BIBLIONUMBER:
+            self.linked_biblionumber = id
+        elif step == Steps.ISSN:
+            self.issn = id
+            # I guess I'll keep this check just in case
+            if self.issn is not None:
+                self.normalized_issn = normalize_intnat_id(self.issn, Steps.ISSN)
+        elif step == Steps.ISBN:
+            self.isbn = id
+            # I guess I'll keep this check just in case
+            if self.isbn is not None:
+                self.normalized_isbn = normalize_intnat_id(self.isbn, Steps.ISBN)
+    
+    @property
+    def has_link(self) -> bool:
+        """Returns if this element has a $9"""
+        return "9" in [subf.code for subf in self.subfields]
 
 KNOWN_LIST:List[Known_Element] = []
 MANUAL_CHECKS_KNOWN_LIST:List[Known_Element] = []
@@ -366,7 +377,7 @@ def generate_4XX_subfields(record:ET.Element) -> List[str]:
 
     # Get the ISBN ($y)
     # So the plugin is kinda strange here but :
-    # I t first checks if there is a 013 and if there is, gets its $a
+    # It first checks if there is a 013 and if there is, gets its $a
     # Then (and not ELSE IF) it checks if there is a 010 (not if there's a 010$a)
     # If there is, gets its $a, but if there's no $a, empties the value it previously had
     # So we're tweaking the process but replicating it
@@ -423,6 +434,62 @@ def get_manual_check_known_elements() -> List[Known_Element]:
     """Returns all knwonw elements using manual checks"""
     return MANUAL_CHECKS_KNOWN_LIST
 
+def manual_check_field(field:pymarc.field.Field) -> List[Subfield]:
+    """Checks if the field matches a manual check with link in subfields"""
+    for known_element in get_manual_check_known_elements():
+        if known_element.manual_check.check(field):
+            # Checks if the known element matched a record & has a link
+            if known_element.has_link:
+                return known_element.subfields
+    return []
+
+def query_sru_step(step:Steps, id:str, record_index:str, record_id:str) -> List[Subfield]:
+    """For all parts querying SRU, checks the known elements and
+    queries SRU if necessary.
+    Returns a list of subfields"""
+    # Check if the id has a value
+    if not id:
+        return []
+
+    # Checks if this ID is known for this step
+    known_element = get_known_element_by_intnat_id(id, step)
+    if known_element:
+        return known_element.subfields
+
+    # If this ID is not known, queries SRU
+    query = ""
+    if step == Steps.LINKED_BIBLIONUMBER:
+        query = sru.generate_query([ksru.Part_Of_Query(ksru.SRU_Indexes.BIBLIONUMBER, ksru.SRU_Relations.EQUALS, id)])
+    elif step in [Steps.ISSN, Steps.ISBN]:
+        query = generate_intnat_id_sru_query(id, step)
+    # Return if query is empty
+    if query == "":
+        return []
+    
+    # Search SRU
+    res = sru.search(
+        query,
+        record_schema=ksru.SRU_Record_Schemas.MARCXML,
+        start_record=1,
+        maximum_records=10
+    )
+    # If there's an error, log & return an empty list
+    if (res.status == "Error"):
+        ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, f"Error occured during SRU request on {step.name}", res.get_error_msg())
+        return []
+    
+    # Informative error, we use 1st record if the query is linked biblionumber
+    if len(res.get_records_id()) > 1:
+        ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, f"SRU returned multiple matches for this {step.name}", f"{step.name} {id} : {','.join(res.get_records_id())}")
+
+    # If there's a match, add known element
+    subfields = []
+    if len(res.get_records()) > 0: # Not == 1, we want to call it even with multiple matyched records
+        subfields = generate_4XX_subfields(res.get_records()[0])
+    new_known_element = Known_Element(step, query, subfields, id)
+    add_known_element(new_known_element)
+    return new_known_element.subfields
+
 # ---------- Preparing Main ----------
 MARC_READER = pymarc.MARCReader(open(RECORDS_FILE_PATH, 'rb'), to_unicode=True, force_utf8=True) # DON'T FORGET ME
 MARC_WRITER = open(FILE_OUT, "wb") # DON'T FORGET ME
@@ -442,9 +509,11 @@ with open(MANUAL_CHECKS_FILE, mode="r+", encoding="utf-8") as f:
         if (res.status == "Error"):
             ERR_MAN.trigger_error(-1, "Ø", Errors.MANUAL_CHECK_SRU, "Error occured during SRU request for a manual check", res.get_error_msg())
             continue
-        # Adds to the known list if at least a result returned
+        # Adds to the known list
+        subfields = []
         if len(res.get_records()) > 0:
-            add_manual_check_known_element(Known_Element(Steps.ISSN, query, generate_4XX_subfields(res.get_records()[0]), manual_check=check))
+            subfields = generate_4XX_subfields(res.get_records()[0])
+        add_manual_check_known_element(Known_Element(Steps.MANUAL_CHECK, query, subfields, check))
 
 # ---------- Main ----------
 # Loop through records
@@ -468,120 +537,30 @@ for record_index, record in enumerate(MARC_READER):
         record_id = record_id.data
 
     for field in record.get_fields(*U4XX_list): # *[] to iterate, using just [] returns nothing
-        # Manual check
-        step = Steps.MANUAL_CHECK
-        leave = False
-        for known_element in get_manual_check_known_elements():
-            if known_element.manual_check.check(field):
-                field.subfields = known_element.subfields
-                leave = True
-                continue
-        # Manual check succeeded, leave
-        if leave:
-            continue
-
-        # Linked Biblionumber check
-        step = Steps.LINKED_BIBLIONUMBER
-        linked_bibnb = field.get("9")
-        if linked_bibnb:
-            # Checks if this linked bibnb is known
-            known_element = get_known_element_by_intnat_id(linked_bibnb, step)
-            if known_element:
-                field.subfields = known_element.subfields
-                continue
-            query = sru.generate_query([ksru.Part_Of_Query(ksru.SRU_Indexes.BIBLIONUMBER, ksru.SRU_Relations.EQUALS, linked_bibnb)])
-            if query != "":
-                res = sru.search(
-                    query,
-                    record_schema=ksru.SRU_Record_Schemas.MARCXML,
-                    start_record=1,
-                    maximum_records=10
-                )
-                if (res.status == "Error"):
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on linked biblionumber", res.get_error_msg())
-                    continue
-                
-                if len(res.get_records_id()) > 1:
-                    # Informative error, we use 1st record if the query is linked ibbionumber
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this linked biblionumber", f"Linked biblionumber {linked_bibnb} : {','.join(res.get_records_id())}")
-                
-                if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
-                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), linked_bibnb=linked_bibnb)
-                    add_known_element(new_known_element)
-                    # Change 463 only if there's a link
-                    if new_known_element.has_link:
-                        field.subfields = new_known_element.subfields
-                    
-                    continue
-
-        # Get first $x and treats it like an ISSN
-        step = Steps.ISSN
-        issn = field.get("x")
-        if issn:
-            # Checks if this ISSN is known
-            known_element = get_known_element_by_intnat_id(issn, step)
-            if known_element:
-                field.subfields = known_element.subfields
-                continue
-            query = generate_intnat_id_sru_query(issn, step)
-            if query != "":
-                res = sru.search(
-                    query,
-                    record_schema=ksru.SRU_Record_Schemas.MARCXML,
-                    start_record=1,
-                    maximum_records=10
-                )
-                if (res.status == "Error"):
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISSN", res.get_error_msg())
-                    continue
-                
-                if len(res.get_records_id()) > 1:
-                    # Informative error, we use 1st record if the query is ISSN
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISSN", f"ISSN {issn} : {','.join(res.get_records_id())}")
-                
-                if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
-                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), issn=issn)
-                    add_known_element(new_known_element)
-                    # Change 463 only if there's a link
-                    if new_known_element.has_link:
-                        field.subfields = new_known_element.subfields
-                    
-                    continue
-        
-        # If no ISSN, check for ISBN
-        # Get first $y and treats it like an ISBN
-        step = Steps.ISBN
-        isbn = field.get("y")
-        if isbn:
-            # Checks if this ISBN is known
-            known_element = get_known_element_by_intnat_id(isbn, step)
-            if known_element:
-                field.subfields = known_element.subfields
-                continue
-            query = generate_intnat_id_sru_query(isbn, step)
-            if query != "":
-                res = sru.search(
-                    query,
-                    record_schema=ksru.SRU_Record_Schemas.MARCXML,
-                    start_record=1,
-                    maximum_records=10
-                )
-                if (res.status == "Error"):
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_ERROR, "Error occured during SRU request on ISBN", res.get_error_msg())
-                    continue
-                
-                if len(res.get_records_id()) > 1:
-                    # Informative error, we use 1st record if the query is ISSN
-                    ERR_MAN.trigger_error(record_index, record_id, Errors.SRU_MULTIPLE_MATCHES, "SRU returned multiple matches for this ISBN", f"ISBN {isbn} : {','.join(res.get_records_id())}")
-                
-                if len(res.get_records()) > 0: # Not a elif, we want to call it even with multiple matyched records
-                    new_known_element = Known_Element(step, query, generate_4XX_subfields(res.get_records()[0]), isbn=isbn)
-                    add_known_element(new_known_element)
-                    # Change 463 only if there's a link
-                    if new_known_element.has_link:
-                        field.subfields = new_known_element.subfields
-                    
-                    continue
+        # Priority : Manual Checks -> linked bibnb -> ISSN -> ISBN
+        for step in [Steps.MANUAL_CHECK, Steps.LINKED_BIBLIONUMBER, Steps.ISSN, Steps.ISBN]:
+            subfields = []
+            # Define whch value to use
+            value = None
+            if step == Steps.LINKED_BIBLIONUMBER:
+                value = field.get("9")
+            # ISSN : Get first $x and treats it like an ISSN
+            elif step == Steps.ISSN:
+                value = field.get("x")
+            # ISBN : Get first $y and treats it like an ISBN
+            elif step == Steps.ISBN:
+                value = field.get("y")
+            
+            if step == Steps.MANUAL_CHECK:
+                subfields = manual_check_field(field)
+            else:
+                # Check known values / query SRU
+                subfields = query_sru_step(step, value, record_index, record_id)
+            # If subfields were return, replace current field subfields and move to next field
+            # Otherwise, don't replace current 463 and go to next test
+            if len(subfields) > 0:
+                field.subfields = subfields
+                break
 
     # Writes the record
     MARC_WRITER.write(record.as_marc())

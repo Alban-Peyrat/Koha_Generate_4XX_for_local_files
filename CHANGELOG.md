@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+* Known elements now also includes elements returning no results from the SRU to avoid useless SRU queries
+* Rewrote the parts querying the SRU to reduce redundancy
+
+### Fixed
+
+* Now has better detection if a known element has a link
+* SRU requests triggering an error no longer prevents next steps to properly execute
+* Manual check known elements now have the correct step assigned
+* Fixed test plan incorrectly testing erroneous ISBN
 
 ## [1.1.0] - 2025-03-14
 
@@ -19,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-* Updated Koha SRU connector to fix generic errors not working sa intended
+* Updated Koha SRU connector to fix generic errors not working as intended
 
 ## [1.0.0] - 2024-07-25
 
