@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-12-17
+
+### Added
+
+* Environment variable `KEEP_V` can now be set to `1` to keep currently defined `$v` and remove new `$v` (only if a `$v` was already defined)
+
 ### Changed
 
 * Known elements now also includes elements returning no results from the SRU to avoid useless SRU queries

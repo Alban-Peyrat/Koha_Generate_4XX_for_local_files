@@ -32,6 +32,9 @@ U4XX_list = [str(nb) for nb in range(400, 500)]
 for ignored_field in ignored_fields:
     if ignored_field in U4XX_list:
         U4XX_list.remove(ignored_field)
+KEEP_V = False
+if os.getenv("KEEP_V") == "1":
+    KEEP_V = True
 NS = {
     'marc': 'http://www.loc.gov/MARC21/slim'
 }
@@ -557,8 +560,12 @@ for record_index, record in enumerate(MARC_READER):
                 # Check known values / query SRU
                 subfields = query_sru_step(step, value, record_index, record_id)
             # If subfields were return, replace current field subfields and move to next field
-            # Otherwise, don't replace current 463 and go to next test
+            # Otherwise, don't replace current 4XX and go to next test
             if len(subfields) > 0:
+                # If subfields are getting replaced, check if there's $v + user wants to keep $v
+                if KEEP_V and "v" in field.subfields_as_dict():
+                    # If it's the case, remove new $v to keep old ones
+                    subfields = [subf for subf in subfields if subf.code != "v"] + [subf for subf in field.subfields if subf.code == "v"]
                 field.subfields = subfields
                 break
 

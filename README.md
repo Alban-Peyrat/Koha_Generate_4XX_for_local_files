@@ -19,6 +19,7 @@ Set up the following environment variables :
 * `MANUAL_CHECKS_FILE` : full path to the [manual checks XML file](#manual-check-file)
 * `KOHA_URL` : your Koha OPAC URL for the SRU
 * `IGNORE_FIELDS` : list of UNIMARC fields to ignore in the `4XX` range, separated by commas
+* `KEEP_V` : set to `1` to keep currently defined `$v` and remove new `$v` (only if a `$v` was already defined, otherwise, the new `$v` will be added)
 
 ### Manual check file
 
@@ -47,4 +48,4 @@ The script will check, for each field, with the following order :
 2. If the field has an ISSN (`$x`), it will search with Koha SRU for records
 3. If the field has an ISBN (`$y`), it will search with Koha SRU for records
 
-If a field matches a linked biblionumber, an ISSN or an ISBN, the script will store for this execution the matching record, to minimze requests to the SRU on known elements.
+If a request to the SRU succeeds, the script will store for this execution the matching record / failure to retrieve a record, to minimze requests to the SRU on known elements.

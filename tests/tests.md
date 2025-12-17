@@ -1,6 +1,6 @@
 # Tests list
 
-_Ignoring fields `400` & `410`_
+_Ignoring fields `400` & `410`, keeping old `$v`_
 
 * Record `001  000000001` : no error & nothing happening
 * Record n°2 :
@@ -14,7 +14,7 @@ _Ignoring fields `400` & `410`_
   * `411` with no `$x`, `$y` & not matching the manual check sample : nothing happening
   * `412` with `$t` matching exactly the manual check for `123456` : `412` is changed to `$0123456$tCréateurs du Japon$aLabbé, Françoise (19..-....)$p1 vol. (199 p.)$y2-7056-6058-5`
   * `413` with `$t` matching the manual check for `123456` if normalised : `413` is changed to `$0123456$tCréateurs du Japon$aLabbé, Françoise (19..-....)$p1 vol. (199 p.)$y2-7056-6058-5`
-  * `414` with `$t` matching exactly the manual check for `123457` : `414` is changed to `$0123457$tLe patrimoine mondial$aAudrerie, Dominique (1953-....)$p1 vol. (127 p.)$v3436$y2-13-049646-6`
+  * `414` with `$t` matching exactly the manual check for `123457` : `414` is changed to `$0123457$tLe patrimoine mondial$aAudrerie, Dominique (1953-....)$p1 vol. (127 p.)$v3436$y2-13-049646-6`, with a `$v`
   * `415` with `$t` matching the manual check for `123457` if noramlised : nothing happening
   * `416` with `$t` matching exactly the manual check for `123457` & a `$y` matching biblionumber `538789` & a `$x` matching biblionumber `162` : `416` is changed to `$0123457$tLe patrimoine mondial$aAudrerie, Dominique (1953-....)$p1 vol. (127 p.)$v3436$y2-13-049646-6`
   * `417` with `$t` matching exactly the manual check for `123458` but no `$a` : nothing happening
@@ -33,5 +33,6 @@ _Ignoring fields `400` & `410`_
   * `430` with a `$x` matching biblionumber `187` : `430` wiht a `$0152259` & no `$x`
   * `431` with a `$9` matching biblionumber `123456` : `431` is changed to `$0123456$tCréateurs du Japon$aLabbé, Françoise (19..-....)$p1 vol. (199 p.)$y2-7056-6058-5`
   * `432` with a `$y` matching biblionumber `115185` :  `432` is changed to `$0115185$tLes seuils du proche$aFrance$p1 vol. (231 p.)` and no `$y` (no `010` have a `$a`, only erroneous ISBN)
+  * `433` with `$t` matching exactly the manual check for `123457` and an alreayd defined `$v`: `433` with a  `$0123457` and a `$vpp. 1789`
   * _`200$a` is mandatory so we're not testing `$t`_
   * _Authors things are a pain to check & seems to work so no testing the full behaviour_
